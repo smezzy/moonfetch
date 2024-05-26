@@ -1,36 +1,100 @@
+-- local cpu = os.capture("cat /proc/cpuinfo | grep 'model name' | uniq | awk -F: '{print $2}' | sed 's/^[ \t]*//'")
+-- local user = os.capture("whoami") .. "@" .. os.capture("cat /etc/hostname")
+local info = require("info")
 local colors = require("colors")
-local setup = require("info")
+local flags = require("flags")
+local logos = require("logos")
 
-local mfetch = {
-    default_config = {
-        margin = 3,
-        sep = " > ",
-        color = colors.blue,
-        flag = "lgbt",
-        art = "arch",
-    },
-    info = {}
+mfetch = {
+    config = {
+        default = {
+            sep = " > ",
+            logo = "flag",
+            flag = "lgbt",
+        }
+    }
 }
 
-function mfetch.addInfo(name, cb)
-    mfetch.info[name] = cb
+function mfetch.generateConfig(cfg)
+    local str = "return { "
+    for k, v in pairs(cfg) do
+        str = str .. k .. " = " .. '"' .. v .. '"' .. ", "
+    end
+    str = str .. " }"
+
+    local handle = io.open("config.lua", "w")
+    handle:write(str)
+    handle:close()
 end
 
-function mfetch.getInfo(name)
-    return mfetch.info[name]()
+function mfetch.getConfig(name)
+    return mfetch.config.user[name]
+end
+
+function mfetch.loadConfig()
+    local user_cfg = require("config")
+
+    mfetch.config.user = {}
+
+    for k, v in pairs(mfetch.config.default) do
+        mfetch.config.user[k] = v
+    end
+
+
+    for k, v in pairs(user_cfg) do
+        mfetch.config.user[k] = v
+    end
+end
+
+function mfetch.setup()
+    local cfg = {}
+
+    io.write("What are your colours?\n")
+    io.write(
+        "[Trans], [Lgbt], [Bissexual], [Gay], [Lesbian], [Assexual], [Pan], [Aromantic], [Agender], [Polyamorous]\n > ")
+    io.flush()
+    local input = io.read():lower()
+    while (flags[input] == nil) do
+        io.write("Sorry, we dont have that flag yet! Please try again.\n")
+        io.flush()
+        input = io.read()
+    end
+    cfg.flag = input
+
+    mfetch.generateConfig(cfg)
+    io.write("\n\n")
 end
 
 function mfetch.fetch()
-    local logo = require("logos")[mfetch.config.art]
-    local flag = require("flags")[mfetch.config.flag]
+    if arg[1] == "--configure" or arg[1] == "-c" or not pcall(require, "config") then
+        mfetch.setup()
+    end
+
+    mfetch.loadConfig()
+
+    local logo = logos[mfetch.getConfig("logo")]
+    local flag = flags[mfetch.getConfig("flag")]
+
+    local infos = {}
+    for k, _ in pairs(info) do
+        infos[k] = function(name, color)
+            color = color or colors.blue
+            if name then
+                return colors.bold ..
+                    color .. name .. colors.reset .. mfetch.getConfig("sep") .. info[k]() .. colors.reset
+            else
+                return colors.bold .. color .. info[k]() .. colors.reset
+            end
+        end
+    end
 
     local lines = {
-        mfetch.getInfo("title"),
-        mfetch.getInfo("infosep"),
-        mfetch.getInfo("os"),
-        mfetch.getInfo("cpu"),
-        mfetch.getInfo("kernel"),
-        mfetch.getInfo("shell"),
+        infos.title(nil, mfetch.getConfig("titleColor")),
+        infos.infosep(nil, colors.reset),
+        infos.os("OS"),
+        infos.cpu("Processor"),
+        infos.kernel("Kernel"),
+        infos.shell("Shell"),
     }
 
     local widest = 0
@@ -84,87 +148,9 @@ function mfetch.fetch()
         io.write("\n")
         j = j + 1
     end
+
+    io.write(colors.reset)
+    io.flush()
 end
-
-mfetch.addInfo('colors', function()
-    local r = '\27[49m'
-    local result = { '', '' }
-
-    for i = 0, 7 do
-        result[1] = result[1] .. '\27[4' .. i .. 'm   '
-    end
-
-    result[1] = result[1] .. r
-
-    for i = 0, 7 do
-        result[2] = result[2] .. '\27[10' .. i .. 'm   '
-    end
-
-    result[2] = result[2] .. r
-
-    return result
-end)
-
-mfetch.addInfo("os", function()
-    local name, version = "", ""
-
-    for line in io.lines("/etc/os-release") do
-        local info = string.split(line, "=")
-
-        if info[1] == "NAME" then
-            name = string.trim(info[2]):gsub('"', '')
-        elseif info[1] == "VERSION" then
-            version = string.trim(info[2]):gsub('"', '')
-        end
-    end
-
-    return name .. " " .. version
-end)
-
-mfetch.addInfo("cpu", function()
-    local name, cores, clock
-    -- the lines looks like model name  : AMD RYZEN FX 9600 OCTA CORE
-
-    for line in io.lines("/proc/cpuinfo") do
-        if line:match("^%s*$") then
-            break
-        elseif line:find("model name") then
-            name = string.trim(string.split(line, ":")[2])
-        elseif line:find("siblings") then
-            cores = string.trim(string.split(line, ":")[2])
-        elseif line:find("cpu MHz") then
-            clock = string.trim(string.split(line, ":")[2])
-        end
-    end
-
-    return name .. " (" .. cores .. ") " .. "@ " .. clock .. " MHz"
-end)
-
-mfetch.addInfo("shell", function()
-    local shell = string.split(os.getenv("SHELL"), '/')
-    return shell[#shell]
-end)
-
-mfetch.addInfo("kernel", function()
-    -- from https://github.com/Rosettea/bunnyfetch/blob/master/cmd/info_linux.go
-    -- /proc/version should always exist on linux
-    local procver = read_file("/proc/version")
-
-    --  /proc/version has the same format with "Linux version <kern-version>" as the 3rd
-    return string.split(procver, " ")[3]
-end)
-
-mfetch.addInfo("title", function()
-    local user = os.capture("whoami")
-    local host = read_file("/etc/hostname")
-    return colors.blue .. user .. colors.reset .. "@" .. colors.blue .. host
-end)
-
-mfetch.addInfo("infosep", function()
-    local title = mfetch.getInfo("title")
-    return string.rep('~', #title + 1)
-end)
-
-
 
 mfetch.fetch()

@@ -66,7 +66,7 @@ local flags = {
         "\27[38;5;76m",  -- bright green
         "\27[38;5;34m",  -- dark green
     },
-    polyamouros = {
+    polyamorous = {
         "\27[38;5;16m",  -- black
         "\27[38;5;124m", -- red
         "\27[38;5;17m",  -- blue

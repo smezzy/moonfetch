@@ -1,3 +1,1 @@
-local config = {
-    margin = 3,
-}
+return { flag = "trans",  }
