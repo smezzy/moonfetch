@@ -95,6 +95,9 @@ function mfetch.fetch()
         infos.cpu("Processor"),
         infos.kernel("Kernel"),
         infos.shell("Shell"),
+        infos.uptime("Uptime"),
+        infos.memory("Memory"),
+        infos.swap("Swap"),
     }
 
     local widest = 0

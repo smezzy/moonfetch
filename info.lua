@@ -52,6 +52,57 @@ function info.kernel()
     return s:gsub("%-(.*)", "")
 end
 
+function info.uptime()
+    local uptime = os.capture('uptime -p')
+    return uptime:gsub("\n", ""):gsub("up ", "")
+end
+
+function info.memory()
+    local total, available = "", ""
+
+    for line in io.lines("/proc/meminfo") do
+        if line:find("MemTotal") then
+            total = string.trim(string.split(line, ":")[2]:gsub("[a-zA-Z]", ""))
+        elseif line:find("MemAvailable") then
+            available = string.trim(string.split(line, ":")[2]:gsub("[a-zA-Z]", ""))
+            print(available)
+        end
+    end
+    -- local t_str
+    --
+    local colors = require("colors")
+    local status = ((total - available) / total) > 0.5 and "orange" or "blue"
+    return string.format("%.2f Gb / %.2f Gb (%s%.0f%%%s)",
+        ((total - available) / (1 * 10 ^ 6)),
+        (total / (1 * 10 ^ 6)),
+        colors[status],
+        ((total - available) / total) * 100,
+        colors.reset)
+end
+
+function info.swap()
+    local total, available = "", ""
+
+    for line in io.lines("/proc/meminfo") do
+        if line:find("SwapTotal") then
+            total = string.trim(string.split(line, ":")[2]:gsub("[a-zA-Z]", ""))
+        elseif line:find("SwapFree") then
+            available = string.trim(string.split(line, ":")[2]:gsub("[a-zA-Z]", ""))
+        end
+    end
+    -- local t_str
+    --
+    local colors = require("colors")
+    local used = total - available
+    local status = (used / total) > 0.5 and "orange" or "blue"
+    return string.format("%.2f Gb / %.2f Gb (%s%.0f%%%s)",
+        (used / (1 * 10 ^ 6)),
+        (total / (1 * 10 ^ 6)),
+        colors[status],
+        (used / total) * 100,
+        colors.reset)
+end
+
 function info.user()
     local user = os.capture("whoami")
     return string.trim(user)
